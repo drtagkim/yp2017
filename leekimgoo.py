@@ -111,6 +111,40 @@ class RequestScraper(Scraper):
         if req.status_code != requests.codes.ok:
             return None
         return Selector(req)
+class Control:
+    @classmethod
+    def measure_page_length(cls,selector):
+        css=".pagination-block .page-of-pages"
+        c=re.compile(r"of ([0-9,]+)$")
+        page_items=selector.css_text(css)
+        if len(page_items) > 0:
+            pages=c.findall(page_items[0].strip())
+            if len(pages) > 0:
+                page=int(pages[0].replace(",",""))
+            else:
+                page=0
+        else:
+            page=0
+        return page-1
+    @classmethod
+    def pagination(cls,selector,target_page):
+        req=selector.req
+        current_url=req.url
+        if target_page==0:
+            return None
+        c=re.compile(r"start=([0-9]+)$")
+        try:
+            current_page=int(c.findall(current_url)[0])
+            cursor=int(current_page/20)
+            url=current_url[:current_url.index("?")]
+        except:
+            cursor=0
+            url=current_url
+        if cursor == target_page:
+            return None
+        new_page = cursor+1
+        params={"start":new_page*20}
+        return BrowserPlan.requests(url,params=params)
 def test():
     ur1="https://www.yelp.com/biz/shaking-crab-new-york-4"
     s=RequestScraper().factory(url1)
@@ -120,3 +154,16 @@ def test():
     r=RequestScraper().factory(url2)
     p=PhotoInReview(r)
     url3="https://www.yelp.com/biz_photos/shaking-crab-new-york-4?select=5tDdn5SLyazzbjQnWMR13Q"
+def test2():
+    #pagination
+    url='https://www.yelp.com/biz/babbo-new-york'
+    r0=BrowserPlan.requests(url)
+    s0=Selector(r0)
+    target=Control.measure_page_length(s0)
+    while True:
+        r0=Control.pagination(s0,target)
+        if r0 == None:
+            break
+        s0=Selector(r0)
+        print(r0.url)
+    print("done")

@@ -14,13 +14,17 @@ class MyPhantomJS(wd.PhantomJS):
         self.set_window_size(1024,768)
 class BrowserPlan():
     @classmethod
-    def requests(cls,url):
+    def requests(cls,url,params=None):
         headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36',
                     'Connection':'close'}
-        return requests.get(url,headers=headers)
+        if params==None:
+            return requests.get(url,headers=headers)
+        else:
+            return requests.get(url,headers=headers,params=params)
 class Selector(BS):
     def __init__(self,req):
         BS.__init__(self,req.content,"lxml")
+        self.req=req
     def css_text(self,css,regexp=None):
         if regexp != None:
             cp=re.compile(regexp)
