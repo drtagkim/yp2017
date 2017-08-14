@@ -1,4 +1,9 @@
+# NOTE
+# excel sheet 1=review,2=photo_info_in_review
 from browser.scrap import *
+from threading import Thread
+import hashlib
+import uuid
 class UserProfile:
     css_real_photo=".review-list .review-sidebar img"
     css_name=".review-sidebar .user-name"
@@ -41,6 +46,9 @@ class Review:
     css_review_photo=".review-content .photo-box a"
     def __init__(self,selector):
         self.selector=selector
+        self.review_id=[]
+    def gen_review_id(self):
+        self.review_id=[uuid.uuid4() for _ in range(self.num)]
     def get_rating(self):
         selector=self.selector
         rating=selector.css_attr(Review.css_rating,"title",regexp=r"(^[0-9.]+)")
@@ -56,6 +64,8 @@ class Review:
         for rc in review_contents:
             content=" ".join([item.text for item in rc.select('p')])
             results.append(content)
+        self.num=len(results)
+        self.gen_review_id()
         return results
     def get_review_photo(self):
         selector=self.selector
@@ -145,6 +155,17 @@ class Control:
         new_page = cursor+1
         params={"start":new_page*20}
         return BrowserPlan.requests(url,params=params)
+    @classmethod
+    def get_hex_code(cls,text):
+        m=hashlib.md5()
+        m.update(text.encode("utf-8"))
+        return m.hexdigest()
+def test3():
+    ur1="https://www.yelp.com/biz/shaking-crab-new-york-4"
+    s=RequestScraper().factory(url1)
+    u=UserProfile(s)
+    review=Review(s)
+    return review.get_review_photo()
 def test():
     ur1="https://www.yelp.com/biz/shaking-crab-new-york-4"
     s=RequestScraper().factory(url1)
