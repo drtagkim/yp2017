@@ -1,6 +1,7 @@
 # NOTE
 # excel sheet 1=review,2=photo_info_in_review
 from browser.scrap import *
+import pandas as pd
 from threading import Thread
 import hashlib
 import uuid
@@ -48,7 +49,7 @@ class Review:
         self.selector=selector
         self.review_id=[]
     def gen_review_id(self):
-        self.review_id=[uuid.uuid4() for _ in range(self.num)]
+        self.review_id=[str(uuid.uuid4()) for _ in range(self.num)]
     def get_rating(self):
         selector=self.selector
         rating=selector.css_attr(Review.css_rating,"title",regexp=r"(^[0-9.]+)")
@@ -165,7 +166,11 @@ def test3():
     s=RequestScraper().factory(url1)
     u=UserProfile(s)
     review=Review(s)
-    return review.get_review_photo()
+    df=pd.DataFrame()
+    df['contents']=review.get_review_content()
+    df['ids']=review.review_id
+    df['review_photo']=review_photo=review.get_review_photo()[1]
+    return df
 def test():
     ur1="https://www.yelp.com/biz/shaking-crab-new-york-4"
     s=RequestScraper().factory(url1)
