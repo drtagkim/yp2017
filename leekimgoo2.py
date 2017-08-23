@@ -3,6 +3,7 @@
 from browser.scrap import *
 from excel.excelutil import *
 from browser.crawlcontrol import *
+from time import sleep
 import pandas as pd
 from random import uniform
 import sys
@@ -166,15 +167,23 @@ class PhotoInReview:
 class Scraper:
     def __init__(self):
         pass
-class RequestScraper(Scraper):
+# class RequestScraper(Scraper):
+    # def __init__(self):
+        # Scraper.__init__(self)
+    # @classmethod
+    # def factory(cls,url):
+        # req=BrowserPlan().requests(url)
+        # if req.status_code != requests.codes.ok:
+            # return None
+        # return Selector(req)
+class ChromeScraper(Scraper):
     def __init__(self):
         Scraper.__init__(self)
     @classmethod
-    def factory(cls,url,politeness):
-        req=BrowserPlan.requests(url,politeness=politeness)
-        if req.status_code != requests.codes.ok:
-            return None
-        return Selector(req.content)
+    def factory(cls,chrome,url,politeness=5):
+        chrome.visit(url,politeness=politeness)
+        content=chrome.page_source
+        return Selector(content)
 class Control:
     @classmethod
     def measure_page_length(cls,selector):
@@ -191,9 +200,8 @@ class Control:
             page=0
         return page-1
     @classmethod
-    def pagination(cls,selector,target_page):
-        req=selector.req
-        current_url=req.url
+    def pagination(cls,chrome,target_page):
+        current_url=chrome.current_url
         if target_page==0:
             return None
         c=re.compile(r"start=([0-9]+)$")
@@ -208,13 +216,14 @@ class Control:
             return None
         new_page = cursor+1
         params={"start":new_page*20}
-        return BrowserPlan.requests(url,params=params)
+        new_url=url+"?start="+new_page*20
+        return new_url
     @classmethod
     def get_hex_code(cls,text):
         m=hashlib.md5()
         m.update(text.encode("utf-8"))
         return m.hexdigest()
-def extract_yp(s,verbose=True,politeness=10):
+def extract_yp(s,chrome,verbose=True,politeness=10):
     user=UserProfile(s)
     review=Review(s)
     i=len(review.photo_cnt)
@@ -227,11 +236,9 @@ def extract_yp(s,verbose=True,politeness=10):
             for purl in review.photo_urls[j]:
                 if verbose:
                     sys.stdout.write(".")
-                r0=RequestScraper.factory(purl,politeness=politeness) #photo profile
+                r0=ChromeScraper.factory(chrome,purl,politeness)
                 p=PhotoInReview(r0,rid)
                 photo_result.append(p)
-                if verbose:
-                    sys.stdout.write("s")
         photo_frame.append(photo_result)
     if verbose:
         sys.stdout.write("!\n")
@@ -271,29 +278,26 @@ def write_output(dir,outfilename,user,review,photo_frame):
     df_photo['photo_caption']=photo_caption
     ExcelOutput.export(fname,names,[df_review,df_photo])
 def go(dir_name,code_name,url,verbose=True,start=1,end=-1,politeness=10):
-    s=RequestScraper.factory(url,politeness=politeness)
+    chrome=MyChrome()
+    s=ChromeScraper.factory(chrome,url,politeness)
     target=Control.measure_page_length(s)
     i=start
     if verbose:
         print("End page = {}".format(target+1))
-        print("Sleeping...{} secs".format(politeness))
     while True:
         fname="{}_{:03d}".format(code_name,i)
-        user,review,photo_frame=extract_yp(s,verbose=verbose,politeness=politeness)
+        user,review,photo_frame=extract_yp(s,chrome,verbose=verbose,politeness=politeness)
         write_output(dir_name,fname,user,review,photo_frame)
         if verbose:
             print("[{}] page_{:04d}".format(str(datetime.now()),i))
         #pagination
-        r=Control.pagination(s,target)
-        if r == None:
+        new_url=Control.pagination(s,chrome,target)
+        if new_url == None:
             break
-        s=Selector(r.content)
-        #politeness
-        if verbose:
-            print("Sleeping...{} secs".format(politeness))
-        #renew_connection()
+        s=ChromeScraper.factory(chrome,new_url,politeness)
         #control
         if end > 0 and i==end:
             break
         i+=1
+    chrome.close()
     print("done")
